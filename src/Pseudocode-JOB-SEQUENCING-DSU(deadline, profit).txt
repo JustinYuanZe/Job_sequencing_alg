@@ -1,0 +1,28 @@
+JOB-SEQUENCING-DSU(deadline, profit)
+
+1.  n ← length(deadline)
+2.  jobCount ← 0
+3.  totalProfit ← 0
+4.  jobs ← empty list
+
+5.  for i ← 0 to n - 1 do
+6.      jobs.add((profit[i], deadline[i]))
+7.  end for
+
+8.  sort jobs in descending order by profit
+
+9.  maxDeadline ← maximum value in deadline
+
+10. create DisjointSet ds with maxDeadline slots
+
+11. for each job in jobs do
+12.     availableSlot ← ds.find(job.deadline)
+
+13.     if availableSlot > 0 then
+14.         ds.merge(ds.find(availableSlot - 1), availableSlot)
+15.         totalProfit ← totalProfit + job.profit
+16.         jobCount ← jobCount + 1
+17.     end if
+18. end for
+
+19. return jobCount, totalProfit

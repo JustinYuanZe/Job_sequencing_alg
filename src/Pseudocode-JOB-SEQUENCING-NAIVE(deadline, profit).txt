@@ -1,0 +1,29 @@
+JOB-SEQUENCING-NAIVE(deadline, profit)
+
+1.  n ← length(deadline)
+2.  countJobs ← 0
+3.  totalProfit ← 0
+4.  jobs ← empty list
+
+5.  for i ← 0 to n - 1 do
+6.      jobs.add((profit[i], deadline[i]))
+7.  end for
+
+8.  sort jobs in descending order by profit
+
+9.  slot ← array of size n initialized with 0
+
+10. for each job in jobs do
+11.     latestSlot ← min(n, job.deadline) - 1
+
+12.     for j ← latestSlot down to 0 do
+13.         if slot[j] = 0 then
+14.             slot[j] ← 1
+15.             countJobs ← countJobs + 1
+16.             totalProfit ← totalProfit + job.profit
+17.             break
+18.         end if
+19.     end for
+20. end for
+
+21. return countJobs, totalProfit

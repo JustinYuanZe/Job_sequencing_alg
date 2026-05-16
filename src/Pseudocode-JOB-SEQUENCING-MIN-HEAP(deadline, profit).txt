@@ -1,0 +1,32 @@
+JOB-SEQUENCING-MIN-HEAP(deadline, profit)
+
+1.  n ← length(deadline)
+2.  jobCount ← 0
+3.  totalProfit ← 0
+4.  jobs ← empty list
+
+5.  for i ← 0 to n - 1 do
+6.      jobs.add((deadline[i], profit[i]))
+7.  end for
+
+8.  sort jobs in ascending order by deadline
+
+9.  pq ← empty min-heap
+
+10. for each job in jobs do
+11.     if job.deadline > size(pq) then
+12.         pq.insert(job.profit)
+
+13.     else if pq is not empty and pq.minimum() < job.profit then
+14.         pq.removeMinimum()
+15.         pq.insert(job.profit)
+16.     end if
+17. end for
+
+18. while pq is not empty do
+19.     totalProfit ← totalProfit + pq.minimum()
+20.     pq.removeMinimum()
+21.     jobCount ← jobCount + 1
+22. end while
+
+23. return jobCount, totalProfit

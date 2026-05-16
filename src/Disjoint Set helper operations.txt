@@ -1,0 +1,22 @@
+MAKE-SET(n)
+
+1. create parent array of size n + 1
+2. for i ← 0 to n do
+3.     parent[i] ← i
+4. end for
+5. return parent
+
+FIND(s)
+
+1. if parent[s] = s then
+2.     return s
+3. end if
+
+4. parent[s] ← FIND(parent[s])
+
+5. return parent[s]
+
+
+MERGE(u, v)
+
+1. parent[v] ← u
