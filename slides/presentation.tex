@@ -1,0 +1,173 @@
+\documentclass[aspectratio=169]{beamer}
+\usetheme{Madrid}
+\usecolortheme{default}
+
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amsmath, amssymb}
+\usepackage[ruled,vlined]{algorithm2e}
+\usepackage{graphicx}
+\usepackage{booktabs}
+
+\title[Job Sequencing]{Job Sequencing with Deadlines}
+\subtitle{Algorithmic Design, Mathematical Foundation, and Optimization}
+\author[Group 12]{Musa \and Ha \and Justin}
+\institute[YZU]{Yuan Ze University \\ \medskip \textit{Introduction to Algorithms - 114-2}}
+\date{May 25, 2026}
+
+\begin{document}
+
+\begin{frame}
+    \titlepage
+\end{frame}
+
+\begin{frame}{Table of Contents}
+    \tableofcontents
+\end{frame}
+
+\section{1. Problem Statement}
+\begin{frame}{Problem Definition}
+    \textbf{Input:} A set of $n$ jobs $S = \{J_1, J_2, \dots, J_n\}$. Each job $J_i$ has:
+    \begin{itemize}
+        \item A deadline $d_i \ge 1$
+        \item A profit $p_i \ge 0$
+    \end{itemize}
+    \vspace{0.5cm}
+    \textbf{Constraints:}
+    \begin{itemize}
+        \item Each job takes exactly 1 unit of time to complete.
+        \item Only one job can be processed at a time.
+        \item A job yields profit only if completed on or before its deadline.
+    \end{itemize}
+    \vspace{0.5cm}
+    \textbf{Objective:} Find a subset of jobs that maximizes total profit.
+\end{frame}
+
+\section{2. Mathematical Foundation}
+\begin{frame}{Why Greedy Works? (The Matroid Perspective)}
+    \begin{block}{The Greedy-Choice Property}
+        To maximize profit, we should prioritize jobs with the highest profit. If the most profitable job can be legally scheduled, it \textbf{must} belong to the optimal solution.
+    \end{block}
+    \vspace{0.5cm}
+
+
+\end{frame}
+
+\section{3. Algorithmic Design \& Implementation}
+\begin{frame}{Approach 1: The Naive Greedy Algorithm}
+    \begin{algorithm}[H]
+    \caption{Naive Job Sequencing}
+    \SetAlgoLined
+    Sort jobs in descending order of profit\;
+    Initialize an array \texttt{slots} of size $n$ to \texttt{0}\;
+    \For{each job $(p_i, d_i)$ in sorted jobs}{
+        $start \leftarrow \min(n, d_i) - 1$\;
+        \For{$j \leftarrow start$ \textbf{down to} 0}{
+            \If{\texttt{slots[j]} = 0}{
+                \texttt{slots[j]} $\leftarrow$ 1\;
+                Add profit $p_i$ to Total\;
+                \textbf{break}\;
+            }
+        }
+    }
+    \end{algorithm}
+    \textbf{Bottleneck:} The inner loop. Worst-case Time Complexity is $\mathcal{O}(N^2)$.
+\end{frame}
+
+\begin{frame}{Approach 2: Priority Queue (MinHeap) Optimization}
+    \textbf{Core Idea:}
+    \begin{itemize}
+        \item [To Do] Explain how sorting by deadline ascending helps.
+        \item [To Do] Explain tracking selected jobs in a MinHeap.
+        \item [To Do] Explain popping the minimum profit job if a better one arrives.
+    \end{itemize}
+    \vspace{1cm}
+    \textbf{Complexity Improvement:} Reduces worst-case time to $\mathcal{O}(N \log N)$.
+\end{frame}
+
+\begin{frame}{Approach 3: Disjoint Set (Union-Find) Optimization}
+    We can eliminate the $\mathcal{O}(N)$ inner loop by treating time slots as a \textbf{Disjoint Set}.
+    \begin{itemize}
+        \item Each time slot is a node in a forest.
+        \item The parent of node $i$ represents the \textit{greatest available time slot} $\le i$.
+        \item \textbf{Find($x$):} Finds the root of $x$ (the available slot).
+        \item \textbf{Union($u, v$):} Merges two sets when a slot is taken.
+    \end{itemize}
+    \vspace{0.5cm}
+    Using \textbf{Path Compression}, the operation takes $\mathcal{O}(\alpha(N))$ time, reducing overall complexity to $\mathcal{O}(N \log N)$ (or $O(N \log D)$ depending on max deadline).
+\end{frame}
+
+\section{4. Performance Analysis}
+
+\begin{frame}{Complexity Analysis}
+    \begin{table}[]
+        \centering
+        \begin{tabular}{lcc}
+            \toprule
+            \textbf{Algorithm} & \textbf{Time Complexity} & \textbf{Space Complexity} \\
+            \midrule
+            Naive Array & $\mathcal{O}(N^2)$ & $\mathcal{O}(N)$ \\
+            MinHeap (Expected) & $\mathcal{O}(N \log N)$ & $\mathcal{O}(N)$ \\
+            Disjoint Set (Optimal) & $\mathcal{O}(N \log D)$ & $\mathcal{O}(D)$ \\
+            \bottomrule
+        \end{tabular}
+    \end{table}
+
+    \vspace{0.5cm}
+    \textbf{Key Observations:}
+    \begin{itemize}
+        \item Naive approach scales quadratically — impractical beyond $N \approx 10^4$.
+        \item MinHeap and DSU both achieve near-linear performance.
+        \item DSU is preferable when max deadline $D$ is small relative to $N$.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Experimental Results}
+    \begin{figure}
+        \centering
+        \includegraphics[height=0.70\textheight]{benchmark_comparison.png}
+        \caption{Execution Time Comparison}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Experimental Results: Summary}
+    \textbf{Empirical Result at $N = 50{,}000$:}
+    \begin{itemize}
+        \item Naive O($N^2$): 577 ms
+        \item MinHeap O($N \log N$): 15 ms
+        \item DSU O($N \log D$): 11 ms
+    \end{itemize}
+\end{frame}
+
+\section{5. Real-World Applications \& Extensions}
+
+\begin{frame}{Extension 1: Two-Machine Scheduling (Johnson's Algorithm)}
+    \textbf{Beyond Single Machine:}
+    \begin{itemize}
+        \item [To Do] Brief explanation of the problem shifting from "deadlines" to "makespan minimization".
+        \item [To Do] Concept of Johnson's Algorithm (sorting processing times).
+        \item [To Do] Note on Machine Unavailability (mentioning the Rapine 2013 paper making it NP-hard).
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Extension 2: Explainable AI (XAI) in Industrial Sequencing}
+    \textbf{Bridging Algorithms and Human Operations:}
+    \begin{itemize}
+        \item [To Do] Why classic algorithms are "black boxes" to factory floor managers.
+        \item [To Do] How XAI techniques can explain the generated schedule.
+        \item [To Do] (Wait for teammate's research to fill this part).
+    \end{itemize}
+\end{frame}
+
+\section{6. Conclusion}
+\begin{frame}{Conclusion}
+    \begin{itemize}
+        \item Job Sequencing is a prime example of how understanding the underlying mathematics (Matroids) justifies the Greedy approach.
+        \item While basic logic solves the problem ($\mathcal{O}(N^2)$), advanced data structures (MinHeap, Disjoint Set) are required to scale the solution ($\mathcal{O}(N \log N)$).
+        \item \textbf{Future Scope:} Real-world constraints (like multi-machine setups and need for explainability) require expanding these classic algorithms into heuristic and AI-driven domains.
+    \end{itemize}
+    \vspace{1cm}
+    \centering \Large \textbf{Q \& A}
+\end{frame}
+
+\end{document}
