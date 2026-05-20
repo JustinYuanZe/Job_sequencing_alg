@@ -61,10 +61,10 @@
 \section{3. Algorithmic Design \& Implementation}
 
 \begin{frame}{Approach 1: The Naive Greedy Algorithm}
-    \begin{minipage}[t]{0.62\textwidth}
+    \begin{minipage}[t]{0.64\textwidth}
         \begin{algorithm}[H]
         \scriptsize
-        \caption{JOB-SEQUENCING-NAIVE(deadline, profit)}
+        \caption{Naive Greedy}
         \SetAlgoLined
         $n \leftarrow \text{length}(deadline)$\;
         $countJobs \leftarrow 0$, $totalProfit \leftarrow 0$, $jobs \leftarrow \text{empty list}$\;
@@ -88,8 +88,9 @@
         \end{algorithm}
     \end{minipage}
     \hfill
-    \begin{minipage}[t]{0.35\textwidth}
-        \vspace{1cm}
+    \begin{minipage}[t]{0.33\textwidth}
+        \vspace{0.4cm}
+        \small
         \textbf{Time Complexity:} \\ $\mathcal{O}(N^2)$ due to backward scan in nested loop. \\
         \vspace{0.5cm}
         \textbf{Space Complexity:} \\ $\mathcal{O}(N)$ to store slots.
@@ -110,8 +111,8 @@
 
 \begin{frame}{Approach 2: Min-Heap Optimization Pseudocode}
     \begin{algorithm}[H]
-    \footnotesize
-    \caption{JOB-SEQUENCING-MIN-HEAP(deadline, profit)}
+    \tiny
+    \caption{Min-Heap Greedy}
     \SetAlgoLined
     $n \leftarrow \text{length}(deadline)$\;
     $jobCount \leftarrow 0$, $totalProfit \leftarrow 0$, $jobs \leftarrow \text{empty list}$\;
@@ -146,7 +147,8 @@
     \SetKwFunction{FMake}{MAKE-SET}
     \SetKwFunction{FFind}{FIND}
     \SetKwFunction{FMerge}{MERGE}
-    
+    \SetKwProg{Fn}{Function}{:}{}
+
     \Fn{\FMake{n}}{
         create parent array of size $n+1$\;
         \For{$i \leftarrow 0$ \text{to} $n$}{
@@ -169,8 +171,8 @@
 
 \begin{frame}{Approach 3: Disjoint Set (Union-Find) Pseudocode}
     \begin{algorithm}[H]
-    \footnotesize
-    \caption{JOB-SEQUENCING-DSU(deadline, profit)}
+    \scriptsize
+    \caption{DSU Greedy}
     \SetAlgoLined
     $n \leftarrow \text{length}(deadline)$\;
     $jobCount \leftarrow 0$, $totalProfit \leftarrow 0$, $jobs \leftarrow \text{empty list}$\;
@@ -196,13 +198,74 @@
     \textbf{The Sorting Bottleneck:}
     Both DSU and Min-Heap require sorting, costing $\mathcal{O}(N \log N)$.
     \vspace{0.3cm}
-    
+
     \textbf{Our Linear-Time Solution:}
     \begin{itemize}
         \item Since profits are positive integers, we can use a stable \textbf{Radix Sort} (using base 256) to sort all jobs by profit in $\mathcal{O}(N)$ time (4 passes for 32-bit integers).
         \item Once sorted, we use DSU with path compression to find available slots in $\mathcal{O}(N \alpha(D))$ time.
         \item \textbf{Overall Complexity:} $\mathcal{O}(N + N \alpha(D))$ -- practically \textbf{linear time}!
     \end{itemize}
+\end{frame}
+
+\begin{frame}{Approach 4: Radix Sort Helper Pseudocode}
+    \vspace{-0.25cm}
+    \begin{algorithm}[H]
+    \tiny
+    \caption{Radix Sort Jobs Descending}
+    \SetAlgoLined
+    $n \leftarrow \text{size}(jobs)$\;
+    \If{$n \le 1$}{
+        \Return $jobs$\;
+    }
+    $maxProfit \leftarrow 0$\;
+    \For{each $job$ in $jobs$}{
+        $maxProfit \leftarrow \max(maxProfit, job.profit)$\;
+    }
+    $temp \leftarrow \text{array of size } n$\;
+    \For{$shift \leftarrow 0$; $(maxProfit \gg shift) > 0$; $shift \leftarrow shift + 8$}{
+        $count[0..255] \leftarrow 0$\;
+        \For{each $job$ in $jobs$}{
+            $byteVal \leftarrow (job.profit \gg shift) \& 255$\;
+            $count[byteVal] \leftarrow count[byteVal] + 1$\;
+        }
+        \For{$i \leftarrow 1$ \textbf{to} $255$}{
+            $count[i] \leftarrow count[i] + count[i - 1]$\;
+        }
+        \For{$i \leftarrow n - 1$ \textbf{down to} $0$}{
+            $byteVal \leftarrow (jobs[i].profit \gg shift) \& 255$\;
+            $temp[count[byteVal] - 1] \leftarrow jobs[i]$\;
+            $count[byteVal] \leftarrow count[byteVal] - 1$\;
+        }
+        $jobs \leftarrow temp$\;
+    }
+    reverse $jobs$ to obtain descending profit order\;
+    \Return $jobs$\;
+    \end{algorithm}
+\end{frame}
+
+\begin{frame}{Approach 4: Radix-DSU Pseudocode}
+    \begin{algorithm}[H]
+    \scriptsize
+    \caption{Radix-DSU Greedy}
+    \SetAlgoLined
+    $n \leftarrow \text{length}(deadline)$\;
+    $jobCount \leftarrow 0$, $totalProfit \leftarrow 0$, $jobs \leftarrow \text{empty list}$\;
+    \For{$i \leftarrow 0$ \textbf{to} $n - 1$}{
+        $jobs.\text{add}((profit[i], deadline[i]))$\;
+    }
+    $jobs \leftarrow \text{RADIX-SORT-JOBS-DESCENDING}(jobs)$\;
+    $maxDeadline \leftarrow \text{maximum value in } deadline$\;
+    create DisjointSet $ds$ with $maxDeadline$ slots\;
+    \For{each $job$ in $jobs$}{
+        $availableSlot \leftarrow ds.\text{find}(job.deadline)$\;
+        \If{$availableSlot > 0$}{
+            $ds.\text{merge}(ds.\text{find}(availableSlot - 1), availableSlot)$\;
+            $totalProfit \leftarrow totalProfit + job.profit$\;
+            $jobCount \leftarrow jobCount + 1$\;
+        }
+    }
+    \Return $jobCount, totalProfit$\;
+    \end{algorithm}
 \end{frame}
 
 \section{4. Performance Analysis}
