@@ -59,48 +59,137 @@
 \end{frame}
 
 \section{3. Algorithmic Design \& Implementation}
+
 \begin{frame}{Approach 1: The Naive Greedy Algorithm}
-    \begin{algorithm}[H]
-    \caption{Naive Job Sequencing}
-    \SetAlgoLined
-    Sort jobs in descending order of profit\;
-    Initialize an array \texttt{slots} of size $n$ to \texttt{0}\;
-    \For{each job $(p_i, d_i)$ in sorted jobs}{
-        $start \leftarrow \min(n, d_i) - 1$\;
-        \For{$j \leftarrow start$ \textbf{down to} 0}{
-            \If{\texttt{slots[j]} = 0}{
-                \texttt{slots[j]} $\leftarrow$ 1\;
-                Add profit $p_i$ to Total\;
-                \textbf{break}\;
+    \begin{minipage}[t]{0.62\textwidth}
+        \begin{algorithm}[H]
+        \scriptsize
+        \caption{JOB-SEQUENCING-NAIVE(deadline, profit)}
+        \SetAlgoLined
+        $n \leftarrow \text{length}(deadline)$\;
+        $countJobs \leftarrow 0$, $totalProfit \leftarrow 0$, $jobs \leftarrow \text{empty list}$\;
+        \For{$i \leftarrow 0$ \text{to} $n - 1$}{
+            $jobs.\text{add}((profit[i], deadline[i]))$\;
+        }
+        sort $jobs$ in descending order by profit\;
+        $slot \leftarrow \text{array of size } n \text{ initialized with } 0$\;
+        \For{each $job$ in $jobs$}{
+            $latestSlot \leftarrow \min(n, job.deadline) - 1$\;
+            \For{$j \leftarrow latestSlot$ \textbf{down to} 0}{
+                \If{$slot[j] = 0$}{
+                    $slot[j] \leftarrow 1$\;
+                    $countJobs \leftarrow countJobs + 1$\;
+                    $totalProfit \leftarrow totalProfit + job.profit$\;
+                    \textbf{break}\;
+                }
             }
         }
-    }
-    \end{algorithm}
-    \textbf{Bottleneck:} The inner loop. Worst-case Time Complexity is $\mathcal{O}(N^2)$.
+        \Return $countJobs, totalProfit$\;
+        \end{algorithm}
+    \end{minipage}
+    \hfill
+    \begin{minipage}[t]{0.35\textwidth}
+        \vspace{1cm}
+        \textbf{Time Complexity:} \\ $\mathcal{O}(N^2)$ due to backward scan in nested loop. \\
+        \vspace{0.5cm}
+        \textbf{Space Complexity:} \\ $\mathcal{O}(N)$ to store slots.
+    \end{minipage}
 \end{frame}
 
 \begin{frame}{Approach 2: Priority Queue (MinHeap) Optimization}
     \textbf{Core Idea:}
     \begin{itemize}
         \item Sort jobs in ascending order of their deadlines: $d_1 \le d_2 \le \dots \le d_n$.
-        \item Maintain a Min-Heap (priority queue) of profits of the scheduled jobs.
-        \item For each job, if its deadline is greater than the size of the heap, we can safely schedule it and push its profit.
-        \item Otherwise, if its profit is greater than the smallest profit currently scheduled (the top of the heap), we pop the top job and schedule the new one instead.
+        \item Maintain a Min-Heap of the profits of scheduled jobs.
+        \item For each job, if its deadline is greater than the size of the heap, we can schedule it and push its profit.
+        \item Otherwise, if its profit is greater than the minimum profit currently scheduled (heap top), replace the top job.
     \end{itemize}
-    \vspace{0.5cm}
+    \vspace{0.3cm}
     \textbf{Complexity Improvement:} Worst-case time is reduced to $\mathcal{O}(N \log N)$ and space is $\mathcal{O}(N)$.
 \end{frame}
 
-\begin{frame}{Approach 3: Disjoint Set (Union-Find) Optimization}
-    We can eliminate the $\mathcal{O}(N)$ inner loop by treating time slots as a \textbf{Disjoint Set}.
-    \begin{itemize}
-        \item Each time slot $0 \dots D$ is represented as a node in a forest.
-        \item The representative element of node $i$ (found via \texttt{Find($i$)}) points to the \textit{latest available time slot} $\le i$.
-        \item \textbf{Find($x$):} Finds the free slot for deadline $x$ using path compression.
-        \item \textbf{Union($u, v$):} Once slot $v$ is occupied, we merge its set with slot $v-1$, so future jobs with deadline $v$ look at $v-1$ or earlier.
-    \end{itemize}
-    \vspace{0.3cm}
-    With path compression, each find operation runs in nearly $\mathcal{O}(\alpha(D))$. The overall complexity is $\mathcal{O}(N \log N + N \alpha(D))$, dominated by the initial sort.
+\begin{frame}{Approach 2: Min-Heap Optimization Pseudocode}
+    \begin{algorithm}[H]
+    \footnotesize
+    \caption{JOB-SEQUENCING-MIN-HEAP(deadline, profit)}
+    \SetAlgoLined
+    $n \leftarrow \text{length}(deadline)$\;
+    $jobCount \leftarrow 0$, $totalProfit \leftarrow 0$, $jobs \leftarrow \text{empty list}$\;
+    \For{$i \leftarrow 0$ \text{to} $n - 1$}{
+        $jobs.\text{add}((deadline[i], profit[i]))$\;
+    }
+    sort $jobs$ in ascending order by deadline\;
+    $pq \leftarrow \text{empty min-heap}$\;
+    \For{each $job$ in $jobs$}{
+        \If{$job.deadline > \text{size}(pq)$}{
+            $pq.\text{insert}(job.profit)$\;
+        }
+        \ElseIf{$pq$ is not empty \textbf{and} $pq.\text{minimum}() < job.profit$}{
+            $pq.\text{removeMinimum}()$\;
+            $pq.\text{insert}(job.profit)$\;
+        }
+    }
+    \While{$pq$ is not empty}{
+        $totalProfit \leftarrow totalProfit + pq.\text{minimum}()$\;
+        $pq.\text{removeMinimum}()$\;
+        $jobCount \leftarrow jobCount + 1$\;
+    }
+    \Return $jobCount, totalProfit$\;
+    \end{algorithm}
+\end{frame}
+
+\begin{frame}{Approach 3: Disjoint Set (Union-Find) Helper Operations}
+    \begin{algorithm}[H]
+    \footnotesize
+    \caption{Disjoint Set Helper Operations}
+    \SetAlgoLined
+    \SetKwFunction{FMake}{MAKE-SET}
+    \SetKwFunction{FFind}{FIND}
+    \SetKwFunction{FMerge}{MERGE}
+    
+    \Fn{\FMake{n}}{
+        create parent array of size $n+1$\;
+        \For{$i \leftarrow 0$ \text{to} $n$}{
+            $parent[i] \leftarrow i$\;
+        }
+        \Return $parent$\;
+    }
+    \Fn{\FFind{s}}{
+        \If{$parent[s] = s$}{
+            \Return $s$\;
+        }
+        $parent[s] \leftarrow \FFind{parent[s]}$ \quad \text{// Path Compression}\;
+        \Return $parent[s]$\;
+    }
+    \Fn{\FMerge{u, v}}{
+        $parent[v] \leftarrow u$\;
+    }
+    \end{algorithm}
+\end{frame}
+
+\begin{frame}{Approach 3: Disjoint Set (Union-Find) Pseudocode}
+    \begin{algorithm}[H]
+    \footnotesize
+    \caption{JOB-SEQUENCING-DSU(deadline, profit)}
+    \SetAlgoLined
+    $n \leftarrow \text{length}(deadline)$\;
+    $jobCount \leftarrow 0$, $totalProfit \leftarrow 0$, $jobs \leftarrow \text{empty list}$\;
+    \For{$i \leftarrow 0$ \text{to} $n - 1$}{
+        $jobs.\text{add}((profit[i], deadline[i]))$\;
+    }
+    sort $jobs$ in descending order by profit\;
+    $maxDeadline \leftarrow \text{maximum value in } deadline$\;
+    create DisjointSet $ds$ with $maxDeadline$ slots\;
+    \For{each $job$ in $jobs$}{
+        $availableSlot \leftarrow ds.\text{find}(job.deadline)$\;
+        \If{$availableSlot > 0$}{
+            $ds.\text{merge}(ds.\text{find}(availableSlot - 1), availableSlot)$\;
+            $totalProfit \leftarrow totalProfit + job.profit$\;
+            $jobCount \leftarrow jobCount + 1$\;
+        }
+    }
+    \Return $jobCount, totalProfit$\;
+    \end{algorithm}
 \end{frame}
 
 \begin{frame}{Approach 4: Optimized Radix DSU (Proposed Optimization)}

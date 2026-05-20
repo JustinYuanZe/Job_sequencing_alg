@@ -22,8 +22,8 @@ using namespace std::chrono;
 
 vector<int> jobSequencing(vector<int> &deadline, vector<int> &profit) {
     int n = deadline.size();
-    int cnt = 0;
-    int totProfit = 0;
+    int countJobs = 0;
+    int totalProfit = 0;
 
     // pair the profit and deadline of all the jobs together
     vector<pair<int, int>> jobs;
@@ -36,19 +36,19 @@ vector<int> jobSequencing(vector<int> &deadline, vector<int> &profit) {
 
     vector<int> slot(n, 0);
     for (int i = 0; i < n; i++) {
-        int start = min(n, jobs[i].second) - 1;
-        for (int j = start; j >= 0; j--) {
+        int latestSlot = min(n, jobs[i].second) - 1;
+        for (int j = latestSlot; j >= 0; j--) {
             // if slot is empty
             if (slot[j] == 0) {
                 slot[j] = 1;
-                cnt++;
-                totProfit += jobs[i].first;
+                countJobs++;
+                totalProfit += jobs[i].first;
                 break;
             }
         }
     }
 
-    return {cnt, totProfit};
+    return {countJobs, totalProfit};
 }
 
 int main(int argc, char *argv[]) {
