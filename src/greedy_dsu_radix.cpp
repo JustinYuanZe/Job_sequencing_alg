@@ -85,7 +85,8 @@ void radixSortJobsDescending(vector<pair<int, int>>& jobs) {
 
 vector<int> jobSequencing(vector<int> &deadline, vector<int> &profit) {
     int n = deadline.size();
-    vector<int> ans = {0, 0};
+    int jobCount = 0;
+    int totalProfit = 0;
 
     // pair the profit and deadline of all the jobs together
     vector<pair<int, int>> jobs;
@@ -98,25 +99,25 @@ vector<int> jobSequencing(vector<int> &deadline, vector<int> &profit) {
     radixSortJobsDescending(jobs);
 
     // Find maximum deadline
-    int d = INT_MIN;
+    int maxDeadline = INT_MIN;
     for (int i = 0; i < n; i++) {
-        d = max(d, deadline[i]);
+        maxDeadline = max(maxDeadline, deadline[i]);
     }
 
-    // create a disjoint set of d nodes
-    DisjointSet ds(d);
+    // create a disjoint set of maxDeadline nodes
+    DisjointSet ds(maxDeadline);
 
     // Traverse through all the jobs
     for (int i = 0; i < n; i++) {
-        int slots = ds.find(jobs[i].second);
-        if (slots > 0) {
-            ds.merge(ds.find(slots - 1), slots);
-            ans[1] += jobs[i].first;
-            ans[0]++;
+        int availableSlot = ds.find(jobs[i].second);
+        if (availableSlot > 0) {
+            ds.merge(ds.find(availableSlot - 1), availableSlot);
+            totalProfit += jobs[i].first;
+            jobCount++;
         }
     }
 
-    return ans;
+    return {jobCount, totalProfit};
 }
 
 int main(int argc, char *argv[]) {

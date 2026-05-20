@@ -23,7 +23,8 @@ using namespace std::chrono;
 
 vector<int> jobSequencing(vector<int> &deadline, vector<int> &profit) {
     int n = deadline.size();
-    vector<int> ans = {0, 0};
+    int jobCount = 0;
+    int totalProfit = 0;
 
     vector<pair<int, int>> jobs;
     for (int i = 0; i < n; i++) {
@@ -48,12 +49,12 @@ vector<int> jobSequencing(vector<int> &deadline, vector<int> &profit) {
     }
 
     while (!pq.empty()) {
-        ans[1] += pq.top();
+        totalProfit += pq.top();
         pq.pop();
-        ans[0]++;
+        jobCount++;
     }
 
-    return ans;
+    return {jobCount, totalProfit};
 }
 
 int main(int argc, char *argv[]) {
