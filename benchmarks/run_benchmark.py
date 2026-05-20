@@ -1,23 +1,26 @@
 """
-Job Sequencing - Benchmark Runner
-==================================
-Compiles and executes three C++ scheduling algorithms on
-pre-generated test cases, then plots performance curves.
+Job Sequencing - Benchmark Pipeline (Single Machine)
+===================================================
+Compiles and executes four C++ job sequencing algorithms on test cases,
+saves benchmark results to CSV, and generates high-quality visualizations.
 
-Three approaches:
-  1. Naive Greedy with linear slot scan   O(N^2)
-  2. Min-Heap / Priority Queue            O(N log N)
-  3. Disjoint Set Union (DSU)             O(N log D)
+Four approaches:
+  1. Naive Greedy with linear slot scan       O(N^2)
+  2. Min-Heap / Priority Queue                O(N log N)
+  3. Disjoint Set Union (DSU)                 O(N log D)
+  4. Radix Sort + DSU (Proposed Optimization)  O(N alpha(D)) - Linear Time
 
 Usage:
   python benchmarks/run_benchmark.py
 """
 
+import csv
 import os
+import platform
+import statistics
 import subprocess
 import sys
-import time
-
+import shutil
 import matplotlib.pyplot as plt
 
 # ---------------------------------------------------------------------------
@@ -43,6 +46,12 @@ ALGORITHMS = {
         "color": "#2A9D8F",
         "marker": "^",
     },
+    "Optimized DSU (Radix) O(N)": {
+        "source": "src/greedy_dsu_radix.cpp",
+        "binary": "bin/dsu_radix",
+        "color": "#9B5DE5",
+        "marker": "D",
+    },
 }
 
 TEST_CASES = [
@@ -55,63 +64,115 @@ TEST_CASES = [
 ]
 
 TIMEOUT_SECONDS = 300
+REPEATS = 5
+OUTPUT_DIR = "results"
+OUTPUT_CSV = os.path.join(OUTPUT_DIR, "job_sequencing_benchmark.csv")
 
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+# Convert Windows path to WSL path
+def to_wsl_path(win_path):
+    abs_path = os.path.abspath(win_path)
+    drive = abs_path[0].lower()
+    rest = abs_path[2:].replace("\\", "/")
+    return f"/mnt/{drive}{rest}"
+
+USE_WSL = False
+
+def detect_compiler():
+    global USE_WSL
+    gpp = shutil.which("g++")
+    if gpp:
+        USE_WSL = False
+        return gpp
+
+    try:
+        r = subprocess.run(
+            ["wsl", "which", "g++"],
+            capture_output=True, text=True, timeout=10
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            USE_WSL = True
+            return r.stdout.strip()
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+
+    return None
+
+def run_cmd(args, timeout=TIMEOUT_SECONDS):
+    if USE_WSL:
+        wsl_project = to_wsl_path(PROJECT_ROOT)
+        cmd_str = " ".join(args)
+        full_cmd = ["wsl", "bash", "-c", f"cd '{wsl_project}' && {cmd_str}"]
+    else:
+        full_cmd = args
+    return subprocess.run(
+        full_cmd, capture_output=True, text=True, timeout=timeout
+    )
 
 # ---------------------------------------------------------------------------
 # Compilation
 # ---------------------------------------------------------------------------
 
-
 def compile_all():
-    print("=" * 60)
-    print("  COMPILING")
-    print("=" * 60)
+    print("=" * 70)
+    print("  COMPILING ALGORITHMS")
+    print("=" * 70)
 
     os.makedirs("bin", exist_ok=True)
-    ok = True
+    gpp_path = detect_compiler()
+    if gpp_path is None:
+        print("  [ERROR] g++ compiler not found!")
+        return False
+
+    mode = "WSL" if USE_WSL else "native"
+    print(f"  Compiler: {gpp_path} ({mode})")
 
     for name, cfg in ALGORITHMS.items():
         src = cfg["source"]
         out = cfg["binary"]
-        cmd = f"g++ -std=c++17 -O2 {src} -o {out}"
-        print(f"  {name}")
-        print(f"    {cmd}")
-        if os.system(cmd) != 0:
-            print(f"    [FAILED]")
-            ok = False
-        else:
-            print(f"    [OK]")
-        print()
-    return ok
-
+        compile_args = ["g++", "-std=c++17", "-O2", src, "-o", out]
+        print(f"  Compiling {name} ...")
+        try:
+            r = run_cmd(compile_args, timeout=30)
+            if r.returncode != 0:
+                print(f"    [FAILED] {r.stderr.strip()}")
+                return False
+            print("    [OK]")
+        except Exception as e:
+            print(f"    [FAILED] {e}")
+            return False
+    print()
+    return True
 
 # ---------------------------------------------------------------------------
 # Execution
 # ---------------------------------------------------------------------------
 
-
 def run_one(binary, testfile):
     try:
-        r = subprocess.run(
-            [binary, testfile], capture_output=True, text=True, timeout=TIMEOUT_SECONDS
-        )
+        r = run_cmd([f"./{binary}", testfile], timeout=TIMEOUT_SECONDS)
         if r.returncode != 0:
             return None
         parts = r.stdout.strip().split()
         if len(parts) < 3:
             return None
-        return float(parts[2])
-    except:
-        return None
+        jobs_scheduled = int(parts[0])
+        profit = int(parts[1])
+        time_ms = float(parts[2])
+        return jobs_scheduled, profit, time_ms
+    except subprocess.TimeoutExpired:
+        return "TIMEOUT", "TIMEOUT", None
+    except Exception as e:
+        return "ERROR", "ERROR", None
 
-
-def run_all():
-    print("=" * 60)
+def run_benchmarks():
+    print("=" * 70)
     print("  RUNNING BENCHMARKS")
-    print("=" * 60)
+    print("=" * 70)
 
-    data = {name: {} for name in ALGORITHMS}
-
+    results = []
+    
     for testfile, n in TEST_CASES:
         if not os.path.exists(testfile):
             print(f"  [SKIP] {testfile} not found")
@@ -121,78 +182,152 @@ def run_all():
         for name, cfg in ALGORITHMS.items():
             binary = cfg["binary"]
             if not os.path.exists(binary):
-                print(f"    {name:<22} binary missing")
+                print(f"    {name:<28} binary missing")
                 continue
 
-            t = run_one(binary, testfile)
-            if t is not None:
-                print(f"    {name:<22} {t:>10.4f} ms")
-                data[name][n] = t
+            # Check for Naive Greedy timeout on large datasets to avoid wasting time
+            if name == "Naive O(N^2)" and n >= 50000:
+                print(f"    {name:<28} [SKIPPED (O(N^2) too slow for N >= 50K)]")
+                results.append({
+                    "N": n,
+                    "algorithm": name,
+                    "scheduled": "N/A",
+                    "profit": "N/A",
+                    "median_ms": None,
+                    "min_ms": None,
+                    "max_ms": None
+                })
+                continue
+
+            times = []
+            scheduled = None
+            profit = None
+            
+            for rep in range(REPEATS):
+                res = run_one(binary, testfile)
+                if res is not None:
+                    sch, prof, t = res
+                    if t is not None:
+                        times.append(t)
+                        scheduled = sch
+                        profit = prof
+            
+            if times:
+                med = statistics.median(times)
+                mn = min(times)
+                mx = max(times)
+                print(f"    {name:<28} profit={profit:<10} time={med:>10.4f} ms")
+                results.append({
+                    "N": n,
+                    "algorithm": name,
+                    "scheduled": scheduled,
+                    "profit": profit,
+                    "median_ms": med,
+                    "min_ms": mn,
+                    "max_ms": mx
+                })
             else:
-                print(f"    {name:<22} {'FAILED':>10}")
+                print(f"    {name:<28} FAILED or TIMED OUT")
+                results.append({
+                    "N": n,
+                    "algorithm": name,
+                    "scheduled": "FAIL",
+                    "profit": "FAIL",
+                    "median_ms": None,
+                    "min_ms": None,
+                    "max_ms": None
+                })
+    return results
 
-    return data
-
+def save_results(results):
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    fieldnames = ["N", "algorithm", "scheduled", "profit", "median_ms", "min_ms", "max_ms"]
+    with open(OUTPUT_CSV, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        for r in results:
+            writer.writerow(r)
+    print(f"\n  Results saved to: {OUTPUT_CSV}")
 
 # ---------------------------------------------------------------------------
 # Plotting
 # ---------------------------------------------------------------------------
 
+def plot_results():
+    if not os.path.exists(OUTPUT_CSV):
+        print(f"CSV results file {OUTPUT_CSV} does not exist. Cannot plot.")
+        return
 
-def plot_results(data):
-    os.makedirs("results", exist_ok=True)
+    # Load data
+    data = {}
+    with open(OUTPUT_CSV) as f:
+        reader = csv.DictReader(f)
+        for r in reader:
+            alg = r["algorithm"]
+            n = int(r["N"])
+            med = r["median_ms"]
+            if med and med != "":
+                med = float(med)
+            else:
+                med = None
+            if alg not in data:
+                data[alg] = {"x": [], "y": []}
+            if med is not None:
+                data[alg]["x"].append(n)
+                data[alg]["y"].append(med)
 
-    plt.figure(figsize=(11, 6))
+    plt.style.use("seaborn-v0_8-whitegrid")
+    fig, ax = plt.subplots(figsize=(10, 6))
 
     for name, cfg in ALGORITHMS.items():
-        xs, ys = [], []
-        for n, t in sorted(data[name].items()):
-            xs.append(n)
-            ys.append(t)
-        if xs:
-            plt.plot(
-                xs,
-                ys,
+        if name in data and data[name]["x"]:
+            ax.plot(
+                data[name]["x"],
+                data[name]["y"],
                 label=name,
                 color=cfg["color"],
                 marker=cfg["marker"],
-                linewidth=2,
-                markersize=7,
+                linewidth=2.5,
+                markersize=8,
+                markeredgecolor="white",
+                markeredgewidth=1.5
             )
 
-    plt.xscale("log")
-    plt.yscale("log")
-    plt.xlabel("Number of Jobs (N)", fontsize=11)
-    plt.ylabel("Execution Time (ms)", fontsize=11)
-    plt.title(
-        "Job Sequencing — Algorithm Performance Comparison",
-        fontweight="bold",
-        fontsize=13,
-    )
-    plt.legend(fontsize=10)
-    plt.grid(True, alpha=0.35, which="both")
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_xlabel("Number of Jobs (N)", fontsize=12, fontweight="bold", labelpad=8)
+    ax.set_ylabel("Execution Time (ms)", fontsize=12, fontweight="bold", labelpad=8)
+    ax.set_title("Job Sequencing with Deadlines -- Empirical Performance Curve", fontsize=14, fontweight="bold", pad=15)
+    ax.legend(fontsize=10, loc="upper left", frameon=True, facecolor="white", edgecolor="none")
+    ax.grid(True, which="both", linestyle="--", alpha=0.5)
+    
+    # Customizing spines and ticks
+    for spine in ["top", "right"]:
+        ax.spines[spine].set_visible(False)
+    ax.spines["left"].set_color("#cccccc")
+    ax.spines["bottom"].set_color("#cccccc")
+
     plt.tight_layout()
-
-    path = "results/benchmark_comparison.png"
-    plt.savefig(path, dpi=150)
-    print(f"\n  Plot saved: {path}")
-    plt.close()
-
+    path = os.path.join(OUTPUT_DIR, "job_sequencing_comparison.png")
+    fig.savefig(path, dpi=200)
+    print(f"  [OK] Plot saved: {path}")
+    plt.close(fig)
 
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
-
 def main():
+    os.chdir(PROJECT_ROOT)
+
     if not compile_all():
         print("Compilation failed. Exiting.")
-        return
+        sys.exit(1)
 
-    data = run_all()
-    plot_results(data)
-    print("\nDone.")
-
+    results = run_benchmarks()
+    save_results(results)
+    plot_results()
+    print("\nBenchmark completed successfully.")
 
 if __name__ == "__main__":
     main()
