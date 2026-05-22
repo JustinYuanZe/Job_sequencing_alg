@@ -51,7 +51,8 @@ public:
 
 vector<int> jobSequencing(vector<int> &deadline, vector<int> &profit) {
     int n = deadline.size();
-    vector<int> ans = {0, 0};
+    int jobCount = 0;
+    int totalProfit = 0;
 
     // pair the profit and deadline of all the jobs together
     vector<pair<int, int>> jobs;
@@ -63,33 +64,33 @@ vector<int> jobSequencing(vector<int> &deadline, vector<int> &profit) {
     sort(jobs.begin(), jobs.end(), greater<pair<int, int>>());
 
     // Find maximum deadline
-    int d = INT_MIN;
+    int maxDeadline = INT_MIN;
     for (int i = 0; i < n; i++) {
-        d = max(d, deadline[i]);
+        maxDeadline = max(maxDeadline, deadline[i]);
     }
 
-    // create a disjoint set of d nodes
-    DisjointSet ds(d);
+    // create a disjoint set of maxDeadline nodes
+    DisjointSet ds(maxDeadline);
 
     // Traverse through all the jobs
     for (int i = 0; i < n; i++) {
         // Find the maximum available free slot for
         // this job (corresponding to its deadline)
-        int slots = ds.find(jobs[i].second);
+        int availableSlot = ds.find(jobs[i].second);
 
         // If maximum available free slot is greater
         // than 0, then free slot available
-        if (slots > 0) {
+        if (availableSlot > 0) {
             // update greatest free slot.
-            ds.merge(ds.find(slots - 1), slots);
+            ds.merge(ds.find(availableSlot - 1), availableSlot);
 
             // update answer
-            ans[1] += jobs[i].first;
-            ans[0]++;
+            totalProfit += jobs[i].first;
+            jobCount++;
         }
     }
 
-    return ans;
+    return {jobCount, totalProfit};
 }
 
 int main(int argc, char *argv[]) {
