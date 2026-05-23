@@ -21,6 +21,134 @@ This report provides a comprehensive study of the Job Sequencing with Deadlines 
 \end{abstract}
 
 \section{Introduction}
+
+Scheduling is one of the most important problems in production systems, logistics, cloud computing, and other real-world environments where many tasks must compete for limited resources. In these systems, the order in which jobs are processed can strongly affect the overall performance. A poor schedule may cause machines to remain idle, jobs to miss their deadlines, resources to be wasted, and the total completion time to increase. Therefore, job sequencing is not only a theoretical problem in algorithms, but also a practical decision-making problem in real operations.
+
+The \textbf{Job Sequencing with Deadlines} problem focuses on deciding which jobs should be completed and when they should be scheduled. Given a set of $n$ jobs $S = \{J_1, J_2, \dots, J_n\}$, each job $J_i$ has a deadline $d_i \ge 1$ and a profit $p_i \ge 0$. Each job requires exactly one unit of processing time, and only one job can be processed at a time. A job produces its profit only if it is completed on or before its deadline. The objective is to select a feasible subset of jobs and assign them to time slots in order to maximize the total profit.
+
+This problem can be solved efficiently using greedy strategies and suitable data structures. In this report, we study several approaches, including the Naive Greedy method, the Min-Heap optimization, the Disjoint Set Union (DSU) approach, and the proposed Radix Sort with DSU optimization. These methods show how the same scheduling problem can be improved from a simple but slower solution to a more scalable and efficient one.
+
+However, real-world scheduling is often more complex than the single-machine deadline model. In many production environments, jobs must pass through multiple machines in a fixed order. This leads to the \textbf{flow shop scheduling} problem, where the goal is often to minimize the \textbf{makespan}, meaning the total time required to complete all jobs. To connect the basic job sequencing problem with multi-machine scheduling, this report also discusses \textbf{Johnson's Algorithm}, a classic method for optimizing two-machine flow shop schedules.
+
+Finally, modern scheduling systems are increasingly supported by Artificial Intelligence. Although AI-based scheduling can produce efficient results, these systems may be difficult for humans to understand if they behave like black boxes. For this reason, the report also introduces \textbf{Explainable AI (XAI)} as an extension that helps explain why a certain schedule is chosen. By combining optimization algorithms with explainability, scheduling systems can become not only efficient, but also transparent, trustworthy, and easier to apply in real industrial environments.
+
+\section{Mathematical Foundation: The Matroid Perspective}
+The correctness of the greedy approach for Job Sequencing with Deadlines is mathematically justified by \textbf{Matroid Theory}.
+
+A matroid is an ordered pair $M = (S, \mathcal{I})$ where $S$ is a finite set, and $\mathcal{I}$ is a family of subsets of $S$ (called independent sets) satisfying:
+\begin{enumerate}
+    \item \textbf{Hereditary Property:} If $A \in \mathcal{I}$ and $B \subseteq A$, then $B \in \mathcal{I}$.
+    \item \textbf{Exchange Property:} If $A, B \in \mathcal{I}$ and $|A| < |B|$, there exists $x \in B \setminus A$ such that $A \cup \{x\} \in \mathcal{I}$.
+\end{enumerate}
+
+For Job Sequencing, we define a subset of jobs $I \subseteq S$ to be independent ($I \in \mathcal{I}$) if there exists a valid schedule for the jobs in $I$ such that no job violates its deadline.
+
+\begin{theorem}
+The pair $M = (S, \mathcal{I})$ defined above forms a matroid.
+\end{theorem}
+
+\begin{proof}
+The hereditary property is trivial: if a set of jobs $A$ has a valid schedule, removing some jobs yields a subset $B \subseteq A$ which can also be scheduled legally by leaving the corresponding slots empty.
+
+The exchange property can be proven by showing that if $|A| < |B|$, we can shift the scheduled times of jobs in $A$ to free up a slot for some job in $B \setminus A$.
+
+By the Gale-Rado theorem, since $M$ is a matroid, a greedy algorithm that sorts elements by weight (profit) in descending order and greedily adds elements to the independent set is guaranteed to find a subset of maximum total profit.
+\end{proof}
+
+\section{Algorithmic Methods and Baselines}
+
+\subsection{Naive Greedy Approach -- $O(N^2)$}
+Sort all jobs in descending order of profit. For each job, scan backward from its deadline slot $\min(n, d_i) - 1$ down to 0 to find the first available free slot. If found, mark the slot as occupied and schedule the job. The worst-case complexity is $O(N^2)$ due to the nested loops.
+
+\subsection{Min-Heap Optimized Approach -- $O(N \log N)$}
+Sort all jobs in ascending order of their deadlines. Iterate through the sorted jobs and maintain a Min-Heap of the profits of scheduled jobs. For each job, if its deadline is greater than the size of the heap, push its profit to the heap. Otherwise, if its profit is greater than the top (minimum profit) of the heap, pop the top and push the new profit. This runs in $O(N \log N)$ time and $O(N)$ space.
+
+\subsection{Disjoint Set Union (DSU) Approach -- $O(N \log D)$}
+Sort all jobs in descending order of profit. Represent time slots $0 \dots D$ (where $D$ is the maximum deadline) as a disjoint set forest. The representative element of node $t$, found via \texttt{Find(t)}, points to the latest available slot $\le t$. When a slot is filled, we merge it with the slot immediately preceding it using \texttt{Union(Find(t)-1, Find(t))}. Dominating factor is sorting, making it $O(N \log N)$ overall, with slot finding taking $O(N \alpha(D))$.
+
+\subsection{Proposed Optimization: Radix Sort + DSU -- $O(N \alpha(D))$}
+The bottleneck in both the Heap and DSU approaches is the comparison-based sort ($O(N \log N)$). Since profits and deadlines are positive integers, we replace the standard sort with a stable \textbf{Radix Sort} (using base 256). For 32-bit integers, this requires exactly 4 passes, running in $O(N)$ time.
+
+We then use DSU with path compression to find available slots in $O(N \alpha(D))$ time.
+This reduces the entire scheduling algorithm to practically linear time, $O(N \alpha(D))$, bypassing the sorting bottleneck.
+
+\section{Experimental Evaluation}
+To evaluate these algorithms, we generated 6 random datasets ranging from $N = 10$ to $N = 50,000$ jobs. The results are summarized in Table~\ref{tab:benchmarks} and visualized in Figure~\ref{fig:comparison}.
+
+\begin{table}[h]
+\centering
+\caption{Empirical execution times (in ms) of the scheduling algorithms.}
+\label{tab:benchmarks}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Jobs (N)} & \textbf{Naive $O(N^2)$} & \textbf{Min-Heap $O(N \log N)$} & \textbf{DSU $O(N \log D)$} & \textbf{Proposed Radix-DSU $O(N)$} \\
+\midrule
+10     & 0.0020 & 0.0030 & 0.0020 & 0.0030 \\
+100    & 0.0140 & 0.0110 & 0.0130 & 0.0040 \\
+500    & 0.0530 & 0.0630 & 0.0390 & 0.0220 \\
+2,000  & 0.5710 & 0.2830 & 0.1980 & 0.0660 \\
+10,000 & 13.8600 & 1.7930 & 1.1100 & 0.4380 \\
+50,000 & Skipped & 8.7770 & 5.7520 & 2.3410 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.85\textwidth]{job_sequencing_comparison.png}
+\caption{Empirical execution times of the four algorithms on a log-log scale.}
+\label{fig:comparison}
+\end{figure}
+
+The Naive algorithm shows quadratic growth, making it unusable at $N = 50,000$. Our proposed Radix-DSU algorithm is the fastest, executing in only 2.34 ms at $N = 50,000$ (over 2.5x faster than standard DSU and 4x faster than the Heap approach), demonstrating the value of eliminating the comparison sorting bottleneck.
+
+\section{Real-World Industrial Applications and Extensions}
+
+The previous sections focus on solving the Job Sequencing with Deadlines problem under a single-machine setting. In this model, each job has a deadline and a profit, and the objective is to maximize the total profit by selecting the best feasible set of jobs. Although this model is useful for understanding the foundation of scheduling, real-world production systems often involve more complex conditions. Jobs may need to pass through several machines, and managers may also need to understand why an automated system chooses a particular schedule. Therefore, this section extends the discussion in two directions: Johnson's Algorithm for two-machine flow shop scheduling and Explainable AI for transparent scheduling decisions.
+
+\subsection{Connection to Johnson's Algorithm}
+
+In the basic Job Sequencing with Deadlines problem, the main question is: \textit{which jobs should be selected before their deadlines in order to maximize profit?} This assumes that each selected job requires only one processing unit and is handled by a single machine. However, in many industrial environments, a job may need to be processed by more than one machine. For example, a product may first be cut by one machine and then assembled or polished by another machine. In this situation, the order of jobs affects not only profit, but also the waiting time between machines and the total time required to complete all jobs.
+
+This type of problem is known as a \textbf{two-machine flow shop scheduling problem}. Each job must be processed first on Machine 1 and then on Machine 2, following the same machine order. The objective is usually to minimize the \textbf{makespan}, which is the total completion time of all jobs. A smaller makespan means that the production process finishes earlier and that the machines are used more efficiently.
+
+\textbf{Johnson's Algorithm} is a classic method for solving this two-machine flow shop problem. Its main idea is simple but effective: jobs with short processing times on Machine 1 should be placed near the beginning of the sequence, while jobs with short processing times on Machine 2 should be placed near the end of the sequence. This arrangement helps reduce the idle time between the two machines.
+
+The algorithm works as follows. First, all processing times on both machines are listed. Then, the smallest processing time among all remaining jobs is identified. If this smallest time belongs to Machine 1, the corresponding job is placed as early as possible in the schedule. If the smallest time belongs to Machine 2, the job is placed as late as possible. After the job is placed, it is removed from the list, and the same process is repeated until all jobs are scheduled.
+
+The intuition behind this rule is that a job that can be processed quickly on Machine 1 should enter the system early so that it can move quickly to Machine 2. On the other hand, a job that can be processed quickly on Machine 2 can be placed later because it will not delay the second machine for a long time. By arranging jobs in this way, Johnson's Algorithm attempts to keep both machines active and reduce unnecessary waiting time.
+
+Therefore, Johnson's Algorithm extends the idea of job sequencing from a single-machine profit-based problem to a two-machine time-based scheduling problem. It shows that sequencing is not only about choosing profitable jobs, but also about arranging jobs in a way that improves the overall flow of the system.
+
+\subsection{Explainable AI (XAI) in Industrial Scheduling}
+
+Although optimization algorithms can produce efficient schedules, real-world users may not always accept them immediately. In factories, hospitals, logistics centers, or computing systems, managers and operators often want to know the reason behind an automated decision. For example, they may ask why a certain job is scheduled first, why another job is delayed, or why the system rejects a high-priority task. If the scheduling system only provides an answer without explanation, users may see it as a black box.
+
+This is where \textbf{Explainable AI (XAI)} becomes important. XAI refers to methods that make the decisions of AI systems more understandable to human users. In the context of scheduling, XAI does not only focus on producing an optimized sequence. It also explains the factors that influence the sequence, such as deadlines, profits, processing times, machine availability, or priority levels.
+
+For example, in the Job Sequencing with Deadlines problem, an explainable system may state that a job was selected because it has high profit and can still meet its deadline. Another job may be rejected because its deadline is too tight or because scheduling it would prevent a more profitable job from being completed. In the two-machine flow shop setting, XAI can explain that a job is placed early because it has a short processing time on Machine 1, or placed late because its shortest processing time occurs on Machine 2.
+
+The value of XAI is that it connects algorithmic optimization with human decision-making. Johnson's Algorithm or DSU-based scheduling methods can answer the question: \textit{what is the best schedule?} XAI helps answer another important question: \textit{why does this schedule make sense?} This explanation improves trust, supports debugging, and allows human managers to check whether the result is practical under real production conditions.
+
+However, XAI also introduces challenges. Generating explanations may require additional computation, especially in large-scale scheduling systems. In addition, the quality of explanations depends on how the XAI method is designed. A poor explanation may be too technical, incomplete, or not useful for actual operators. Therefore, XAI should be designed carefully so that explanations are accurate, clear, and meaningful for the people who use the system.
+
+Overall, the integration of scheduling algorithms and XAI provides a more human-centered approach to optimization. Instead of simply producing a schedule, the system can provide both an efficient solution and a clear reason for that solution.
+
+\section{Conclusion}
+
+This report analyzed the Job Sequencing with Deadlines problem as an important example of scheduling optimization. The problem begins with a simple but practical question: given a set of jobs with deadlines and profits, how can we select and arrange jobs in order to maximize the total profit? Through this problem, we showed how greedy thinking can be used to make efficient scheduling decisions under time constraints.
+
+Several algorithmic methods were discussed. The Naive Greedy approach provides an intuitive solution but becomes inefficient for large input sizes. The Min-Heap and Disjoint Set Union approaches improve the performance by using more suitable data structures. The proposed Radix Sort with DSU further reduces the sorting bottleneck and achieves practically linear performance for integer-based job data. These methods demonstrate how algorithmic design can transform a basic solution into a scalable one.
+
+Beyond the single-machine model, the report also connected job sequencing to the two-machine flow shop problem through Johnson's Algorithm. While Job Sequencing with Deadlines focuses on maximizing profit before deadlines, Johnson's Algorithm focuses on minimizing the makespan when jobs must pass through two machines in sequence. This extension shows that scheduling problems can have different objectives depending on the real-world environment, but they share the same core idea: choosing the right order can significantly improve system performance.
+
+Finally, the report discussed Explainable AI as an important direction for modern scheduling systems. In practical environments, an optimized schedule is not always enough. Human users also need to understand why the system makes certain decisions. XAI helps make scheduling systems more transparent by explaining the factors behind job selection, rejection, or ordering. This increases trust, supports human oversight, and makes automated scheduling more acceptable in real operations.
+
+In conclusion, job sequencing is not only a theoretical algorithmic problem, but also a practical tool for improving decision-making in real systems. Greedy algorithms, optimized data structures, Johnson's Algorithm, and Explainable AI together show how scheduling can become more efficient, scalable, and understandable. The future of scheduling systems should therefore focus not only on finding optimal solutions, but also on making those solutions clear, trustworthy, and useful for human decision-makers.
+
+\end{document}\end{abstract}
+
+\section{Introduction}
 In industrial manufacturing, cloud computing, and logistics, scheduling jobs efficiently under time constraints is a fundamental problem. The \textbf{Job Sequencing with Deadlines} problem is defined as follows:
 Given a set of $n$ jobs $S = \{J_1, J_2, \dots, J_n\}$, where each job $J_i$ has a deadline $d_i \ge 1$ and a profit $p_i \ge 0$. Each job takes exactly 1 unit of time to complete, and only one job can be processed at any given time. A job yields profit $p_i$ only if it is completed on or before its deadline $d_i$. The goal is to find a feasible schedule (a subset of jobs and an assignment of jobs to time slots) that maximizes the total profit.
 
